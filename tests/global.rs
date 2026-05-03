@@ -11,12 +11,12 @@ fn compute_write_storage_compute_read_storage() {
         next_accesses: &[vk_sync::AccessType::ComputeShaderReadOther],
     };
 
-    let (src_mask, dst_mask, barrier) = vk_sync::get_memory_barrier(&global_barrier);
+    let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(src_mask, vk::PipelineStageFlags::COMPUTE_SHADER);
-    assert_eq!(dst_mask, vk::PipelineStageFlags::COMPUTE_SHADER);
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags::SHADER_WRITE);
-    assert_eq!(barrier.dst_access_mask, vk::AccessFlags::SHADER_READ);
+    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
+    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
+    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
+    assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::SHADER_READ);
 }
 
 #[test]
@@ -27,12 +27,12 @@ fn compute_read_storage_compute_write_storage() {
         next_accesses: &[vk_sync::AccessType::ComputeShaderReadOther],
     };
 
-    let (src_mask, dst_mask, barrier) = vk_sync::get_memory_barrier(&global_barrier);
+    let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(src_mask, vk::PipelineStageFlags::COMPUTE_SHADER);
-    assert_eq!(dst_mask, vk::PipelineStageFlags::COMPUTE_SHADER);
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags::SHADER_WRITE);
-    assert_eq!(barrier.dst_access_mask, vk::AccessFlags::SHADER_READ);
+    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
+    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
+    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
+    assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::SHADER_READ);
 }
 
 #[test]
@@ -43,12 +43,12 @@ fn compute_write_storage_graphics_read_index() {
         next_accesses: &[vk_sync::AccessType::IndexBuffer],
     };
 
-    let (src_mask, dst_mask, barrier) = vk_sync::get_memory_barrier(&global_barrier);
+    let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(src_mask, vk::PipelineStageFlags::COMPUTE_SHADER);
-    assert_eq!(dst_mask, vk::PipelineStageFlags::VERTEX_INPUT);
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags::SHADER_WRITE);
-    assert_eq!(barrier.dst_access_mask, vk::AccessFlags::INDEX_READ);
+    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
+    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::INDEX_INPUT);
+    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
+    assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::INDEX_READ);
 }
 
 #[test]
@@ -59,14 +59,14 @@ fn compute_write_storage_graphics_read_indirect() {
         next_accesses: &[vk_sync::AccessType::IndirectBuffer],
     };
 
-    let (src_mask, dst_mask, barrier) = vk_sync::get_memory_barrier(&global_barrier);
+    let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(src_mask, vk::PipelineStageFlags::COMPUTE_SHADER);
-    assert_eq!(dst_mask, vk::PipelineStageFlags::DRAW_INDIRECT);
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags::SHADER_WRITE);
+    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
+    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::DRAW_INDIRECT);
+    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
     assert_eq!(
         barrier.dst_access_mask,
-        vk::AccessFlags::INDIRECT_COMMAND_READ
+        vk::AccessFlags2::INDIRECT_COMMAND_READ
     );
 }
 
@@ -78,12 +78,12 @@ fn nothing_transfer_read() {
         next_accesses: &[vk_sync::AccessType::TransferRead],
     };
 
-    let (src_mask, dst_mask, barrier) = vk_sync::get_memory_barrier(&global_barrier);
+    let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(src_mask, vk::PipelineStageFlags::TOP_OF_PIPE);
-    assert_eq!(dst_mask, vk::PipelineStageFlags::TRANSFER);
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags::empty());
-    assert_eq!(barrier.dst_access_mask, vk::AccessFlags::empty());
+    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::NONE);
+    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::ALL_TRANSFER);
+    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::empty());
+    assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::empty());
 }
 
 #[test]
@@ -94,14 +94,14 @@ fn transfer_write_graphics_read_vertex() {
         next_accesses: &[vk_sync::AccessType::VertexBuffer],
     };
 
-    let (src_mask, dst_mask, barrier) = vk_sync::get_memory_barrier(&global_barrier);
+    let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(src_mask, vk::PipelineStageFlags::TRANSFER);
-    assert_eq!(dst_mask, vk::PipelineStageFlags::VERTEX_INPUT);
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags::TRANSFER_WRITE);
+    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::ALL_TRANSFER);
+    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::VERTEX_ATTRIBUTE_INPUT);
+    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::TRANSFER_WRITE);
     assert_eq!(
         barrier.dst_access_mask,
-        vk::AccessFlags::VERTEX_ATTRIBUTE_READ
+        vk::AccessFlags2::VERTEX_ATTRIBUTE_READ
     );
 }
 
@@ -113,17 +113,17 @@ fn full_pipeline_barrier() {
         next_accesses: &[vk_sync::AccessType::General],
     };
 
-    let (src_mask, dst_mask, barrier) = vk_sync::get_memory_barrier(&global_barrier);
+    let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(src_mask, vk::PipelineStageFlags::ALL_COMMANDS);
-    assert_eq!(dst_mask, vk::PipelineStageFlags::ALL_COMMANDS);
+    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::ALL_COMMANDS);
+    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::ALL_COMMANDS);
     assert_eq!(
         barrier.src_access_mask,
-        vk::AccessFlags::MEMORY_READ | vk::AccessFlags::MEMORY_WRITE
+        vk::AccessFlags2::MEMORY_READ | vk::AccessFlags2::MEMORY_WRITE
     );
     assert_eq!(
         barrier.dst_access_mask,
-        vk::AccessFlags::MEMORY_READ | vk::AccessFlags::MEMORY_WRITE
+        vk::AccessFlags2::MEMORY_READ | vk::AccessFlags2::MEMORY_WRITE
     );
 }
 
@@ -138,17 +138,17 @@ fn compute_write_storage_graphics_read_index_compute_read_uniform() {
         ],
     };
 
-    let (src_mask, dst_mask, barrier) = vk_sync::get_memory_barrier(&global_barrier);
+    let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(src_mask, vk::PipelineStageFlags::COMPUTE_SHADER);
+    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
     assert_eq!(
-        dst_mask,
-        vk::PipelineStageFlags::VERTEX_INPUT | vk::PipelineStageFlags::COMPUTE_SHADER
+        barrier.dst_stage_mask,
+        vk::PipelineStageFlags2::INDEX_INPUT | vk::PipelineStageFlags2::COMPUTE_SHADER
     );
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags::SHADER_WRITE);
+    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
     assert_eq!(
         barrier.dst_access_mask,
-        vk::AccessFlags::INDEX_READ | vk::AccessFlags::UNIFORM_READ
+        vk::AccessFlags2::INDEX_READ | vk::AccessFlags2::UNIFORM_READ
     );
 }
 
@@ -163,16 +163,16 @@ fn compute_write_texel_graphics_read_indirect_fragment_read_uniform() {
         ],
     };
 
-    let (src_mask, dst_mask, barrier) = vk_sync::get_memory_barrier(&global_barrier);
+    let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(src_mask, vk::PipelineStageFlags::COMPUTE_SHADER);
+    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
     assert_eq!(
-        dst_mask,
-        vk::PipelineStageFlags::DRAW_INDIRECT | vk::PipelineStageFlags::FRAGMENT_SHADER
+        barrier.dst_stage_mask,
+        vk::PipelineStageFlags2::DRAW_INDIRECT | vk::PipelineStageFlags2::FRAGMENT_SHADER
     );
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags::SHADER_WRITE);
+    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
     assert_eq!(
         barrier.dst_access_mask,
-        vk::AccessFlags::INDIRECT_COMMAND_READ | vk::AccessFlags::UNIFORM_READ
+        vk::AccessFlags2::INDIRECT_COMMAND_READ | vk::AccessFlags2::UNIFORM_READ
     );
 }
