@@ -232,6 +232,37 @@ pub enum AccessType {
     /// Written as a buffer during acceleration structure building (e.g. a staging buffer)
     AccelerationStructureBufferWrite,
 }
+impl AccessType {
+    pub fn is_write_access(&self) -> bool {
+        matches!(
+        self,
+        AccessType::CommandBufferWriteNVX
+            | AccessType::VertexShaderWrite
+            | AccessType::MeshShaderWrite
+            | AccessType::TaskShaderWrite
+            | AccessType::TessellationControlShaderWrite
+            | AccessType::TessellationEvaluationShaderWrite
+            | AccessType::GeometryShaderWrite
+            | AccessType::FragmentShaderWrite
+            | AccessType::ColorAttachmentWrite
+            | AccessType::DepthStencilAttachmentWrite
+            | AccessType::DepthAttachmentWriteStencilReadOnly
+            | AccessType::DepthStencilAttachmentReadWrite
+            | AccessType::StencilAttachmentWriteDepthReadOnly
+            | AccessType::ComputeShaderWrite
+            | AccessType::ComputeShaderReadWrite
+            | AccessType::AnyShaderWrite
+            | AccessType::TransferWrite
+            | AccessType::HostWrite
+            | AccessType::ColorAttachmentReadWrite
+            | AccessType::General
+            | AccessType::AccelerationStructureBuildWrite
+            | AccessType::AccelerationStructureBufferWrite
+    )
+    }
+}
+
+
 
 /// Defines a handful of layout options for images.
 /// Rather than a list of all possible image layouts, this reduced list is
@@ -340,7 +371,7 @@ pub fn get_memory_barrier<'a>(barrier: &GlobalBarrier<'a>) -> vk::MemoryBarrier2
         memory_barrier.src_stage_mask |= previous_info.stage_mask;
 
         // Add appropriate availability operations - for writes only.
-        if is_write_access(*previous_access) {
+        if  previous_access.is_write_access() {
             memory_barrier.src_access_mask |= previous_info.access_mask;
         }
     }
@@ -382,7 +413,7 @@ pub fn get_buffer_memory_barrier<'a>(
         buffer_barrier.src_stage_mask |= previous_info.stage_mask;
 
         // Add appropriate availability operations - for writes only.
-        if is_write_access(*previous_access) {
+        if previous_access.is_write_access() {
             buffer_barrier.src_access_mask |= previous_info.access_mask;
         }
     }
@@ -423,7 +454,7 @@ pub fn get_image_memory_barrier<'a>(
         image_barrier.src_stage_mask |= previous_info.stage_mask;
 
         // Add appropriate availability operations - for writes only.
-        if is_write_access(*previous_access) {
+        if previous_access.is_write_access() {
             image_barrier.src_access_mask |= previous_info.access_mask;
         }
 
@@ -842,30 +873,3 @@ pub(crate) fn get_access_info(access_type: AccessType) -> AccessInfo {
     }
 }
 
-pub fn is_write_access(access_type: AccessType) -> bool {
-    matches!(
-        access_type,
-        AccessType::CommandBufferWriteNVX
-            | AccessType::VertexShaderWrite
-            | AccessType::MeshShaderWrite
-            | AccessType::TaskShaderWrite
-            | AccessType::TessellationControlShaderWrite
-            | AccessType::TessellationEvaluationShaderWrite
-            | AccessType::GeometryShaderWrite
-            | AccessType::FragmentShaderWrite
-            | AccessType::ColorAttachmentWrite
-            | AccessType::DepthStencilAttachmentWrite
-            | AccessType::DepthAttachmentWriteStencilReadOnly
-            | AccessType::DepthStencilAttachmentReadWrite
-            | AccessType::StencilAttachmentWriteDepthReadOnly
-            | AccessType::ComputeShaderWrite
-            | AccessType::ComputeShaderReadWrite
-            | AccessType::AnyShaderWrite
-            | AccessType::TransferWrite
-            | AccessType::HostWrite
-            | AccessType::ColorAttachmentReadWrite
-            | AccessType::General
-            | AccessType::AccelerationStructureBuildWrite
-            | AccessType::AccelerationStructureBufferWrite
-    )
-}
