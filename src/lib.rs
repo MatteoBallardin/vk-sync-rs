@@ -325,52 +325,50 @@ pub enum AccessType {
 impl AccessType {
     pub fn is_write_access(&self) -> bool {
         matches!(
-        self,
-        AccessType::CommandBufferWriteNVX
-            | AccessType::VertexShaderWrite
-            | AccessType::MeshShaderWrite
-            | AccessType::TaskShaderWrite
-            | AccessType::TessellationControlShaderWrite
-            | AccessType::TessellationEvaluationShaderWrite
-            | AccessType::GeometryShaderWrite
-            | AccessType::FragmentShaderWrite
-            | AccessType::ColorAttachmentWrite
-            | AccessType::DepthStencilAttachmentWrite
-            | AccessType::DepthAttachmentWriteStencilReadOnly
-            | AccessType::DepthStencilAttachmentReadWrite
-            | AccessType::StencilAttachmentWriteDepthReadOnly
-            | AccessType::ComputeShaderWrite
-            | AccessType::ComputeShaderReadWrite
-            | AccessType::AnyShaderWrite
-            | AccessType::TransferWrite
-            | AccessType::HostWrite
-            | AccessType::ColorAttachmentReadWrite
-            | AccessType::General
-            | AccessType::AccelerationStructureBuildWrite
-            | AccessType::AccelerationStructureBufferWrite
-            | AccessType::MicromapWrite
-            | AccessType::MicromapReadWrite
-            | AccessType::TransformFeedbackWrite
-            | AccessType::TransformFeedbackCounterWrite
-            | AccessType::VideoDecodeWrite
-            | AccessType::VideoDecodeReadWrite
-            | AccessType::VideoEncodeWrite
-            | AccessType::VideoEncodeReadWrite
-            | AccessType::OpticalFlowWrite
-            | AccessType::OpticalFlowReadWrite
-            | AccessType::VertexShaderReadWrite
-            | AccessType::TessellationControlShaderReadWrite
-            | AccessType::TessellationEvaluationShaderReadWrite
-            | AccessType::GeometryShaderReadWrite
-            | AccessType::FragmentShaderReadWrite
-            | AccessType::MeshShaderReadWrite
-            | AccessType::TaskShaderReadWrite
-            | AccessType::AnyShaderReadWrite
-    )
+            self,
+            AccessType::CommandBufferWriteNVX
+                | AccessType::VertexShaderWrite
+                | AccessType::MeshShaderWrite
+                | AccessType::TaskShaderWrite
+                | AccessType::TessellationControlShaderWrite
+                | AccessType::TessellationEvaluationShaderWrite
+                | AccessType::GeometryShaderWrite
+                | AccessType::FragmentShaderWrite
+                | AccessType::ColorAttachmentWrite
+                | AccessType::DepthStencilAttachmentWrite
+                | AccessType::DepthAttachmentWriteStencilReadOnly
+                | AccessType::DepthStencilAttachmentReadWrite
+                | AccessType::StencilAttachmentWriteDepthReadOnly
+                | AccessType::ComputeShaderWrite
+                | AccessType::ComputeShaderReadWrite
+                | AccessType::AnyShaderWrite
+                | AccessType::TransferWrite
+                | AccessType::HostWrite
+                | AccessType::ColorAttachmentReadWrite
+                | AccessType::General
+                | AccessType::AccelerationStructureBuildWrite
+                | AccessType::AccelerationStructureBufferWrite
+                | AccessType::MicromapWrite
+                | AccessType::MicromapReadWrite
+                | AccessType::TransformFeedbackWrite
+                | AccessType::TransformFeedbackCounterWrite
+                | AccessType::VideoDecodeWrite
+                | AccessType::VideoDecodeReadWrite
+                | AccessType::VideoEncodeWrite
+                | AccessType::VideoEncodeReadWrite
+                | AccessType::OpticalFlowWrite
+                | AccessType::OpticalFlowReadWrite
+                | AccessType::VertexShaderReadWrite
+                | AccessType::TessellationControlShaderReadWrite
+                | AccessType::TessellationEvaluationShaderReadWrite
+                | AccessType::GeometryShaderReadWrite
+                | AccessType::FragmentShaderReadWrite
+                | AccessType::MeshShaderReadWrite
+                | AccessType::TaskShaderReadWrite
+                | AccessType::AnyShaderReadWrite
+        )
     }
 }
-
-
 
 /// Defines a handful of layout options for images.
 /// Rather than a list of all possible image layouts, this reduced list is
@@ -479,7 +477,7 @@ pub fn get_memory_barrier<'a>(barrier: &GlobalBarrier<'a>) -> vk::MemoryBarrier2
         memory_barrier.src_stage_mask |= previous_info.stage_mask;
 
         // Add appropriate availability operations - for writes only.
-        if  previous_access.is_write_access() {
+        if previous_access.is_write_access() {
             memory_barrier.src_access_mask |= previous_info.access_mask;
         }
     }
@@ -503,9 +501,7 @@ pub fn get_memory_barrier<'a>(barrier: &GlobalBarrier<'a>) -> vk::MemoryBarrier2
 /// Mapping function that translates a buffer barrier into a synchronization 2
 /// `vk::BufferMemoryBarrier2` for use with `vkCmdPipelineBarrier2` /
 /// `vkCmdWaitEvents2`.
-pub fn get_buffer_memory_barrier<'a>(
-    barrier: &BufferBarrier<'a>,
-) -> vk::BufferMemoryBarrier2<'a> {
+pub fn get_buffer_memory_barrier<'a>(barrier: &BufferBarrier<'a>) -> vk::BufferMemoryBarrier2<'a> {
     let mut buffer_barrier = vk::BufferMemoryBarrier2 {
         src_queue_family_index: barrier.src_queue_family_index,
         dst_queue_family_index: barrier.dst_queue_family_index,
@@ -545,9 +541,7 @@ pub fn get_buffer_memory_barrier<'a>(
 /// Mapping function that translates an image barrier into a synchronization 2
 /// `vk::ImageMemoryBarrier2` for use with `vkCmdPipelineBarrier2` /
 /// `vkCmdWaitEvents2`.
-pub fn get_image_memory_barrier<'a>(
-    barrier: &ImageBarrier<'a>,
-) -> vk::ImageMemoryBarrier2<'a> {
+pub fn get_image_memory_barrier<'a>(barrier: &ImageBarrier<'a>) -> vk::ImageMemoryBarrier2<'a> {
     let mut image_barrier = vk::ImageMemoryBarrier2 {
         src_queue_family_index: barrier.src_queue_family_index,
         dst_queue_family_index: barrier.dst_queue_family_index,
@@ -996,8 +990,7 @@ pub(crate) fn get_access_info(access_type: AccessType) -> AccessInfo {
         },
         AccessType::MicromapReadWrite => AccessInfo {
             stage_mask: vk::PipelineStageFlags2::MICROMAP_BUILD_EXT,
-            access_mask: vk::AccessFlags2::MICROMAP_READ_EXT
-                | vk::AccessFlags2::MICROMAP_WRITE_EXT,
+            access_mask: vk::AccessFlags2::MICROMAP_READ_EXT | vk::AccessFlags2::MICROMAP_WRITE_EXT,
             image_layout: vk::ImageLayout::UNDEFINED,
         },
         AccessType::DescriptorBufferRead => AccessInfo {
@@ -1144,4 +1137,3 @@ pub(crate) fn get_access_info(access_type: AccessType) -> AccessInfo {
         },
     }
 }
-

@@ -49,7 +49,10 @@ fn host_write_compute_read_uniform() {
     let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
     assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::HOST);
-    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
+    assert_eq!(
+        barrier.dst_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
     assert_eq!(barrier.src_access_mask, vk::AccessFlags2::HOST_WRITE);
     assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::UNIFORM_READ);
 }
@@ -65,8 +68,14 @@ fn compute_read_compute_write_war_hazard() {
 
     let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
-    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
+    assert_eq!(
+        barrier.src_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
+    assert_eq!(
+        barrier.dst_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
     assert_eq!(barrier.src_access_mask, vk::AccessFlags2::empty());
     assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::empty());
 }
@@ -82,10 +91,22 @@ fn compute_write_compute_write_waw_hazard() {
 
     let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
-    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
-    assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
+    assert_eq!(
+        barrier.src_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
+    assert_eq!(
+        barrier.dst_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
+    assert_eq!(
+        barrier.src_access_mask,
+        vk::AccessFlags2::SHADER_STORAGE_WRITE
+    );
+    assert_eq!(
+        barrier.dst_access_mask,
+        vk::AccessFlags2::SHADER_STORAGE_WRITE
+    );
 }
 
 #[test]
@@ -98,7 +119,10 @@ fn transfer_write_host_read() {
 
     let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::ALL_TRANSFER);
+    assert_eq!(
+        barrier.src_stage_mask,
+        vk::PipelineStageFlags2::ALL_TRANSFER
+    );
     assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::HOST);
     assert_eq!(barrier.src_access_mask, vk::AccessFlags2::TRANSFER_WRITE);
     assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::HOST_READ);
@@ -119,7 +143,10 @@ fn compute_write_multiple_graphics_reads() {
 
     let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
+    assert_eq!(
+        barrier.src_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
     assert_eq!(
         barrier.dst_stage_mask,
         vk::PipelineStageFlags2::DRAW_INDIRECT
@@ -127,7 +154,10 @@ fn compute_write_multiple_graphics_reads() {
             | vk::PipelineStageFlags2::VERTEX_ATTRIBUTE_INPUT
             | vk::PipelineStageFlags2::FRAGMENT_SHADER
     );
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
+    assert_eq!(
+        barrier.src_access_mask,
+        vk::AccessFlags2::SHADER_STORAGE_WRITE
+    );
     assert_eq!(
         barrier.dst_access_mask,
         vk::AccessFlags2::INDIRECT_COMMAND_READ
@@ -231,9 +261,18 @@ fn task_shader_write_mesh_shader_read() {
 
     let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::TASK_SHADER_EXT);
-    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::MESH_SHADER_EXT);
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
+    assert_eq!(
+        barrier.src_stage_mask,
+        vk::PipelineStageFlags2::TASK_SHADER_EXT
+    );
+    assert_eq!(
+        barrier.dst_stage_mask,
+        vk::PipelineStageFlags2::MESH_SHADER_EXT
+    );
+    assert_eq!(
+        barrier.src_access_mask,
+        vk::AccessFlags2::SHADER_STORAGE_WRITE
+    );
     assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::SHADER_READ);
 }
 
@@ -247,8 +286,14 @@ fn compute_read_write_chained() {
 
     let barrier = vk_sync::get_memory_barrier(&global_barrier);
 
-    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
-    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
+    assert_eq!(
+        barrier.src_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
+    assert_eq!(
+        barrier.dst_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
     assert_eq!(
         barrier.src_access_mask,
         vk::AccessFlags2::SHADER_STORAGE_READ | vk::AccessFlags2::SHADER_STORAGE_WRITE
@@ -298,12 +343,18 @@ fn buffer_queue_ownership_transfer() {
     assert_eq!(barrier.dst_queue_family_index, 2);
     assert_eq!(barrier.offset, 0);
     assert_eq!(barrier.size, 1024);
-    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
+    assert_eq!(
+        barrier.src_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
     assert_eq!(
         barrier.dst_stage_mask,
         vk::PipelineStageFlags2::VERTEX_ATTRIBUTE_INPUT
     );
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
+    assert_eq!(
+        barrier.src_access_mask,
+        vk::AccessFlags2::SHADER_STORAGE_WRITE
+    );
     assert_eq!(
         barrier.dst_access_mask,
         vk::AccessFlags2::VERTEX_ATTRIBUTE_READ
@@ -387,7 +438,10 @@ fn image_transfer_dst_to_present() {
 
     let barrier = vk_sync::get_image_memory_barrier(&image_barrier);
 
-    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::ALL_TRANSFER);
+    assert_eq!(
+        barrier.src_stage_mask,
+        vk::PipelineStageFlags2::ALL_TRANSFER
+    );
     assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::NONE);
     assert_eq!(barrier.src_access_mask, vk::AccessFlags2::TRANSFER_WRITE);
     assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::empty());
@@ -408,9 +462,18 @@ fn image_general_layout_compute_pingpong() {
 
     let barrier = vk_sync::get_image_memory_barrier(&image_barrier);
 
-    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
-    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
+    assert_eq!(
+        barrier.src_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
+    assert_eq!(
+        barrier.dst_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
+    assert_eq!(
+        barrier.src_access_mask,
+        vk::AccessFlags2::SHADER_STORAGE_WRITE
+    );
     assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::SHADER_READ);
     assert_eq!(barrier.old_layout, vk::ImageLayout::GENERAL);
     assert_eq!(barrier.new_layout, vk::ImageLayout::GENERAL);
@@ -510,12 +573,18 @@ fn image_fragment_shading_rate_attachment() {
 
     let barrier = vk_sync::get_image_memory_barrier(&image_barrier);
 
-    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
+    assert_eq!(
+        barrier.src_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
     assert_eq!(
         barrier.dst_stage_mask,
         vk::PipelineStageFlags2::FRAGMENT_SHADING_RATE_ATTACHMENT_KHR
     );
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
+    assert_eq!(
+        barrier.src_access_mask,
+        vk::AccessFlags2::SHADER_STORAGE_WRITE
+    );
     assert_eq!(
         barrier.dst_access_mask,
         vk::AccessFlags2::FRAGMENT_SHADING_RATE_ATTACHMENT_READ_KHR
@@ -540,13 +609,22 @@ fn image_video_decode_to_fragment_sampled() {
 
     let barrier = vk_sync::get_image_memory_barrier(&image_barrier);
 
-    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::VIDEO_DECODE_KHR);
-    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::FRAGMENT_SHADER);
+    assert_eq!(
+        barrier.src_stage_mask,
+        vk::PipelineStageFlags2::VIDEO_DECODE_KHR
+    );
+    assert_eq!(
+        barrier.dst_stage_mask,
+        vk::PipelineStageFlags2::FRAGMENT_SHADER
+    );
     assert_eq!(
         barrier.src_access_mask,
         vk::AccessFlags2::VIDEO_DECODE_WRITE_KHR
     );
-    assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::SHADER_SAMPLED_READ);
+    assert_eq!(
+        barrier.dst_access_mask,
+        vk::AccessFlags2::SHADER_SAMPLED_READ
+    );
     assert_eq!(barrier.old_layout, vk::ImageLayout::VIDEO_DECODE_DST_KHR);
     assert_eq!(
         barrier.new_layout,
@@ -567,10 +645,22 @@ fn image_compute_write_optical_flow_input() {
 
     let barrier = vk_sync::get_image_memory_barrier(&image_barrier);
 
-    assert_eq!(barrier.src_stage_mask, vk::PipelineStageFlags2::COMPUTE_SHADER);
-    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::OPTICAL_FLOW_NV);
-    assert_eq!(barrier.src_access_mask, vk::AccessFlags2::SHADER_STORAGE_WRITE);
-    assert_eq!(barrier.dst_access_mask, vk::AccessFlags2::OPTICAL_FLOW_READ_NV);
+    assert_eq!(
+        barrier.src_stage_mask,
+        vk::PipelineStageFlags2::COMPUTE_SHADER
+    );
+    assert_eq!(
+        barrier.dst_stage_mask,
+        vk::PipelineStageFlags2::OPTICAL_FLOW_NV
+    );
+    assert_eq!(
+        barrier.src_access_mask,
+        vk::AccessFlags2::SHADER_STORAGE_WRITE
+    );
+    assert_eq!(
+        barrier.dst_access_mask,
+        vk::AccessFlags2::OPTICAL_FLOW_READ_NV
+    );
     assert_eq!(barrier.old_layout, vk::ImageLayout::GENERAL);
     assert_eq!(barrier.new_layout, vk::ImageLayout::GENERAL);
 }
@@ -598,7 +688,10 @@ fn image_queue_ownership_transfer() {
         barrier.src_stage_mask,
         vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT
     );
-    assert_eq!(barrier.dst_stage_mask, vk::PipelineStageFlags2::FRAGMENT_SHADER);
+    assert_eq!(
+        barrier.dst_stage_mask,
+        vk::PipelineStageFlags2::FRAGMENT_SHADER
+    );
     assert_eq!(
         barrier.old_layout,
         vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL
