@@ -229,7 +229,7 @@ pub enum AccessType {
     /// Read as an acceleration structure during acceleration structure building (e.g. a BLAS when building a TLAS)
     AccelerationStructureBuildRead,
 
-    // Written as a buffer during acceleration structure building (e.g. a staging buffer)
+    /// Written as a buffer during acceleration structure building (e.g. a staging buffer)
     AccelerationStructureBufferWrite,
 }
 
@@ -842,7 +842,7 @@ pub(crate) fn get_access_info(access_type: AccessType) -> AccessInfo {
     }
 }
 
-pub(crate) fn is_write_access(access_type: AccessType) -> bool {
+pub fn is_write_access(access_type: AccessType) -> bool {
     matches!(
         access_type,
         AccessType::CommandBufferWriteNVX
@@ -865,5 +865,7 @@ pub(crate) fn is_write_access(access_type: AccessType) -> bool {
             | AccessType::HostWrite
             | AccessType::ColorAttachmentReadWrite
             | AccessType::General
+            | AccessType::AccelerationStructureBuildWrite
+            | AccessType::AccelerationStructureBufferWrite
     )
 }
