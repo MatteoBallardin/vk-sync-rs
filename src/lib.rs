@@ -231,6 +231,96 @@ pub enum AccessType {
 
     /// Written as a buffer during acceleration structure building (e.g. a staging buffer)
     AccelerationStructureBufferWrite,
+
+    /// Read as the shader binding table during ray tracing
+    ShaderBindingTableRead,
+
+    /// Read as a micromap during micromap building or ray tracing
+    MicromapRead,
+
+    /// Written as a micromap during micromap building
+    MicromapWrite,
+
+    /// Read or written as a micromap during micromap building
+    MicromapReadWrite,
+
+    /// Read as a descriptor buffer in any shader
+    DescriptorBufferRead,
+
+    /// Read as a fragment shading rate attachment
+    FragmentShadingRateAttachmentRead,
+
+    /// Read as a fragment density map attachment
+    FragmentDensityMapRead,
+
+    /// Read as a color attachment with non-coherent access (advanced blending)
+    ColorAttachmentReadNoncoherent,
+
+    /// Read as the predicate buffer for conditional rendering
+    ConditionalRenderingRead,
+
+    /// Written by transform feedback
+    TransformFeedbackWrite,
+
+    /// Read as a transform feedback counter buffer (e.g. by indirect draws)
+    TransformFeedbackCounterRead,
+
+    /// Written as a transform feedback counter buffer
+    TransformFeedbackCounterWrite,
+
+    /// Read as the invocation mask image (HUAWEI)
+    InvocationMaskRead,
+
+    /// Read as the source for video decode operations
+    VideoDecodeRead,
+
+    /// Written as the destination of video decode operations
+    VideoDecodeWrite,
+
+    /// Read or written by video decode operations
+    VideoDecodeReadWrite,
+
+    /// Read as the source for video encode operations
+    VideoEncodeRead,
+
+    /// Written as the destination of video encode operations
+    VideoEncodeWrite,
+
+    /// Read or written by video encode operations
+    VideoEncodeReadWrite,
+
+    /// Read by optical flow operations
+    OpticalFlowRead,
+
+    /// Written by optical flow operations
+    OpticalFlowWrite,
+
+    /// Read or written by optical flow operations
+    OpticalFlowReadWrite,
+
+    /// Read or written as any resource in a vertex shader
+    VertexShaderReadWrite,
+
+    /// Read or written as any resource in a tessellation control shader
+    TessellationControlShaderReadWrite,
+
+    /// Read or written as any resource in a tessellation evaluation shader
+    TessellationEvaluationShaderReadWrite,
+
+    /// Read or written as any resource in a geometry shader
+    GeometryShaderReadWrite,
+
+    /// Read or written as any resource in a fragment shader
+    FragmentShaderReadWrite,
+
+    /// Read or written as any resource in a mesh shader
+    MeshShaderReadWrite,
+
+    /// Read or written as any resource in a task shader
+    TaskShaderReadWrite,
+
+    /// Read or written as any resource in any shader
+    AnyShaderReadWrite,
 }
 impl AccessType {
     pub fn is_write_access(&self) -> bool {
@@ -258,6 +348,24 @@ impl AccessType {
             | AccessType::General
             | AccessType::AccelerationStructureBuildWrite
             | AccessType::AccelerationStructureBufferWrite
+            | AccessType::MicromapWrite
+            | AccessType::MicromapReadWrite
+            | AccessType::TransformFeedbackWrite
+            | AccessType::TransformFeedbackCounterWrite
+            | AccessType::VideoDecodeWrite
+            | AccessType::VideoDecodeReadWrite
+            | AccessType::VideoEncodeWrite
+            | AccessType::VideoEncodeReadWrite
+            | AccessType::OpticalFlowWrite
+            | AccessType::OpticalFlowReadWrite
+            | AccessType::VertexShaderReadWrite
+            | AccessType::TessellationControlShaderReadWrite
+            | AccessType::TessellationEvaluationShaderReadWrite
+            | AccessType::GeometryShaderReadWrite
+            | AccessType::FragmentShaderReadWrite
+            | AccessType::MeshShaderReadWrite
+            | AccessType::TaskShaderReadWrite
+            | AccessType::AnyShaderReadWrite
     )
     }
 }
@@ -869,6 +977,170 @@ pub(crate) fn get_access_info(access_type: AccessType) -> AccessInfo {
             stage_mask: vk::PipelineStageFlags2::ACCELERATION_STRUCTURE_BUILD_KHR,
             access_mask: vk::AccessFlags2::TRANSFER_WRITE,
             image_layout: vk::ImageLayout::UNDEFINED,
+        },
+        AccessType::ShaderBindingTableRead => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::RAY_TRACING_SHADER_KHR,
+            access_mask: vk::AccessFlags2::SHADER_BINDING_TABLE_READ_KHR,
+            image_layout: vk::ImageLayout::UNDEFINED,
+        },
+        AccessType::MicromapRead => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::MICROMAP_BUILD_EXT
+                | vk::PipelineStageFlags2::ACCELERATION_STRUCTURE_BUILD_KHR,
+            access_mask: vk::AccessFlags2::MICROMAP_READ_EXT,
+            image_layout: vk::ImageLayout::UNDEFINED,
+        },
+        AccessType::MicromapWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::MICROMAP_BUILD_EXT,
+            access_mask: vk::AccessFlags2::MICROMAP_WRITE_EXT,
+            image_layout: vk::ImageLayout::UNDEFINED,
+        },
+        AccessType::MicromapReadWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::MICROMAP_BUILD_EXT,
+            access_mask: vk::AccessFlags2::MICROMAP_READ_EXT
+                | vk::AccessFlags2::MICROMAP_WRITE_EXT,
+            image_layout: vk::ImageLayout::UNDEFINED,
+        },
+        AccessType::DescriptorBufferRead => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::ALL_COMMANDS,
+            access_mask: vk::AccessFlags2::DESCRIPTOR_BUFFER_READ_EXT,
+            image_layout: vk::ImageLayout::UNDEFINED,
+        },
+        AccessType::FragmentShadingRateAttachmentRead => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::FRAGMENT_SHADING_RATE_ATTACHMENT_KHR,
+            access_mask: vk::AccessFlags2::FRAGMENT_SHADING_RATE_ATTACHMENT_READ_KHR,
+            image_layout: vk::ImageLayout::FRAGMENT_SHADING_RATE_ATTACHMENT_OPTIMAL_KHR,
+        },
+        AccessType::FragmentDensityMapRead => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::FRAGMENT_DENSITY_PROCESS_EXT,
+            access_mask: vk::AccessFlags2::FRAGMENT_DENSITY_MAP_READ_EXT,
+            image_layout: vk::ImageLayout::FRAGMENT_DENSITY_MAP_OPTIMAL_EXT,
+        },
+        AccessType::ColorAttachmentReadNoncoherent => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT,
+            access_mask: vk::AccessFlags2::COLOR_ATTACHMENT_READ_NONCOHERENT_EXT,
+            image_layout: vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+        },
+        AccessType::ConditionalRenderingRead => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::CONDITIONAL_RENDERING_EXT,
+            access_mask: vk::AccessFlags2::CONDITIONAL_RENDERING_READ_EXT,
+            image_layout: vk::ImageLayout::UNDEFINED,
+        },
+        AccessType::TransformFeedbackWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::TRANSFORM_FEEDBACK_EXT,
+            access_mask: vk::AccessFlags2::TRANSFORM_FEEDBACK_WRITE_EXT,
+            image_layout: vk::ImageLayout::UNDEFINED,
+        },
+        AccessType::TransformFeedbackCounterRead => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::DRAW_INDIRECT
+                | vk::PipelineStageFlags2::TRANSFORM_FEEDBACK_EXT,
+            access_mask: vk::AccessFlags2::TRANSFORM_FEEDBACK_COUNTER_READ_EXT,
+            image_layout: vk::ImageLayout::UNDEFINED,
+        },
+        AccessType::TransformFeedbackCounterWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::TRANSFORM_FEEDBACK_EXT,
+            access_mask: vk::AccessFlags2::TRANSFORM_FEEDBACK_COUNTER_WRITE_EXT,
+            image_layout: vk::ImageLayout::UNDEFINED,
+        },
+        AccessType::InvocationMaskRead => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::INVOCATION_MASK_HUAWEI,
+            access_mask: vk::AccessFlags2::INVOCATION_MASK_READ_HUAWEI,
+            image_layout: vk::ImageLayout::GENERAL,
+        },
+        AccessType::VideoDecodeRead => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::VIDEO_DECODE_KHR,
+            access_mask: vk::AccessFlags2::VIDEO_DECODE_READ_KHR,
+            image_layout: vk::ImageLayout::VIDEO_DECODE_SRC_KHR,
+        },
+        AccessType::VideoDecodeWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::VIDEO_DECODE_KHR,
+            access_mask: vk::AccessFlags2::VIDEO_DECODE_WRITE_KHR,
+            image_layout: vk::ImageLayout::VIDEO_DECODE_DST_KHR,
+        },
+        AccessType::VideoDecodeReadWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::VIDEO_DECODE_KHR,
+            access_mask: vk::AccessFlags2::VIDEO_DECODE_READ_KHR
+                | vk::AccessFlags2::VIDEO_DECODE_WRITE_KHR,
+            image_layout: vk::ImageLayout::VIDEO_DECODE_DPB_KHR,
+        },
+        AccessType::VideoEncodeRead => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::VIDEO_ENCODE_KHR,
+            access_mask: vk::AccessFlags2::VIDEO_ENCODE_READ_KHR,
+            image_layout: vk::ImageLayout::VIDEO_ENCODE_SRC_KHR,
+        },
+        AccessType::VideoEncodeWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::VIDEO_ENCODE_KHR,
+            access_mask: vk::AccessFlags2::VIDEO_ENCODE_WRITE_KHR,
+            image_layout: vk::ImageLayout::VIDEO_ENCODE_DST_KHR,
+        },
+        AccessType::VideoEncodeReadWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::VIDEO_ENCODE_KHR,
+            access_mask: vk::AccessFlags2::VIDEO_ENCODE_READ_KHR
+                | vk::AccessFlags2::VIDEO_ENCODE_WRITE_KHR,
+            image_layout: vk::ImageLayout::VIDEO_ENCODE_DPB_KHR,
+        },
+        AccessType::OpticalFlowRead => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::OPTICAL_FLOW_NV,
+            access_mask: vk::AccessFlags2::OPTICAL_FLOW_READ_NV,
+            image_layout: vk::ImageLayout::GENERAL,
+        },
+        AccessType::OpticalFlowWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::OPTICAL_FLOW_NV,
+            access_mask: vk::AccessFlags2::OPTICAL_FLOW_WRITE_NV,
+            image_layout: vk::ImageLayout::GENERAL,
+        },
+        AccessType::OpticalFlowReadWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::OPTICAL_FLOW_NV,
+            access_mask: vk::AccessFlags2::OPTICAL_FLOW_READ_NV
+                | vk::AccessFlags2::OPTICAL_FLOW_WRITE_NV,
+            image_layout: vk::ImageLayout::GENERAL,
+        },
+        AccessType::VertexShaderReadWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::VERTEX_SHADER,
+            access_mask: vk::AccessFlags2::SHADER_STORAGE_READ
+                | vk::AccessFlags2::SHADER_STORAGE_WRITE,
+            image_layout: vk::ImageLayout::GENERAL,
+        },
+        AccessType::TessellationControlShaderReadWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::TESSELLATION_CONTROL_SHADER,
+            access_mask: vk::AccessFlags2::SHADER_STORAGE_READ
+                | vk::AccessFlags2::SHADER_STORAGE_WRITE,
+            image_layout: vk::ImageLayout::GENERAL,
+        },
+        AccessType::TessellationEvaluationShaderReadWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::TESSELLATION_EVALUATION_SHADER,
+            access_mask: vk::AccessFlags2::SHADER_STORAGE_READ
+                | vk::AccessFlags2::SHADER_STORAGE_WRITE,
+            image_layout: vk::ImageLayout::GENERAL,
+        },
+        AccessType::GeometryShaderReadWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::GEOMETRY_SHADER,
+            access_mask: vk::AccessFlags2::SHADER_STORAGE_READ
+                | vk::AccessFlags2::SHADER_STORAGE_WRITE,
+            image_layout: vk::ImageLayout::GENERAL,
+        },
+        AccessType::FragmentShaderReadWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::FRAGMENT_SHADER,
+            access_mask: vk::AccessFlags2::SHADER_STORAGE_READ
+                | vk::AccessFlags2::SHADER_STORAGE_WRITE,
+            image_layout: vk::ImageLayout::GENERAL,
+        },
+        AccessType::MeshShaderReadWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::MESH_SHADER_EXT,
+            access_mask: vk::AccessFlags2::SHADER_STORAGE_READ
+                | vk::AccessFlags2::SHADER_STORAGE_WRITE,
+            image_layout: vk::ImageLayout::GENERAL,
+        },
+        AccessType::TaskShaderReadWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::TASK_SHADER_EXT,
+            access_mask: vk::AccessFlags2::SHADER_STORAGE_READ
+                | vk::AccessFlags2::SHADER_STORAGE_WRITE,
+            image_layout: vk::ImageLayout::GENERAL,
+        },
+        AccessType::AnyShaderReadWrite => AccessInfo {
+            stage_mask: vk::PipelineStageFlags2::ALL_COMMANDS,
+            access_mask: vk::AccessFlags2::SHADER_STORAGE_READ
+                | vk::AccessFlags2::SHADER_STORAGE_WRITE,
+            image_layout: vk::ImageLayout::GENERAL,
         },
     }
 }
