@@ -323,7 +323,7 @@ pub enum AccessType {
     AnyShaderReadWrite,
 }
 impl AccessType {
-    pub fn is_write_access(&self) -> bool {
+    pub const fn is_write_access(&self) -> bool {
         matches!(
             self,
             AccessType::CommandBufferWriteNVX
