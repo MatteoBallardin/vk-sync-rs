@@ -54,7 +54,7 @@ pub fn set_event(
 ) {
     let mut stage_mask = vk::PipelineStageFlags2::empty();
     for previous_access in previous_accesses {
-        let previous_info = get_access_info(*previous_access);
+        let previous_info = get_access_info(previous_access);
         stage_mask |= previous_info.stage_mask;
     }
 
@@ -78,7 +78,7 @@ pub fn reset_event(
 ) {
     let mut stage_mask = vk::PipelineStageFlags2::empty();
     for previous_access in previous_accesses {
-        let previous_info = get_access_info(*previous_access);
+        let previous_info = get_access_info(previous_access);
         stage_mask |= previous_info.stage_mask;
     }
 

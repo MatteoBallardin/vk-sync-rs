@@ -472,7 +472,7 @@ pub fn get_memory_barrier<'a>(barrier: &GlobalBarrier<'a>) -> vk::MemoryBarrier2
     let mut memory_barrier = vk::MemoryBarrier2::default();
 
     for previous_access in barrier.previous_accesses {
-        let previous_info = get_access_info(*previous_access);
+        let previous_info = get_access_info(previous_access);
 
         memory_barrier.src_stage_mask |= previous_info.stage_mask;
 
@@ -483,7 +483,7 @@ pub fn get_memory_barrier<'a>(barrier: &GlobalBarrier<'a>) -> vk::MemoryBarrier2
     }
 
     for next_access in barrier.next_accesses {
-        let next_info = get_access_info(*next_access);
+        let next_info = get_access_info(next_access);
 
         memory_barrier.dst_stage_mask |= next_info.stage_mask;
 
@@ -512,7 +512,7 @@ pub fn get_buffer_memory_barrier<'a>(barrier: &BufferBarrier<'a>) -> vk::BufferM
     };
 
     for previous_access in barrier.previous_accesses {
-        let previous_info = get_access_info(*previous_access);
+        let previous_info = get_access_info(previous_access);
 
         buffer_barrier.src_stage_mask |= previous_info.stage_mask;
 
@@ -523,7 +523,7 @@ pub fn get_buffer_memory_barrier<'a>(barrier: &BufferBarrier<'a>) -> vk::BufferM
     }
 
     for next_access in barrier.next_accesses {
-        let next_info = get_access_info(*next_access);
+        let next_info = get_access_info(next_access);
 
         buffer_barrier.dst_stage_mask |= next_info.stage_mask;
 
@@ -551,7 +551,7 @@ pub fn get_image_memory_barrier<'a>(barrier: &ImageBarrier<'a>) -> vk::ImageMemo
     };
 
     for previous_access in barrier.previous_accesses {
-        let previous_info = get_access_info(*previous_access);
+        let previous_info = get_access_info(previous_access);
 
         image_barrier.src_stage_mask |= previous_info.stage_mask;
 
@@ -583,7 +583,7 @@ pub fn get_image_memory_barrier<'a>(barrier: &ImageBarrier<'a>) -> vk::ImageMemo
     }
 
     for next_access in barrier.next_accesses {
-        let next_info = get_access_info(*next_access);
+        let next_info = get_access_info(next_access);
 
         image_barrier.dst_stage_mask |= next_info.stage_mask;
 
@@ -618,7 +618,7 @@ pub(crate) struct AccessInfo {
     pub(crate) image_layout: vk::ImageLayout,
 }
 
-pub(crate) fn get_access_info(access_type: AccessType) -> AccessInfo {
+pub(crate) fn get_access_info(access_type: &AccessType) -> AccessInfo { //TODO this function wants to be const,but bitor is const unstable on rust 1.95
     match access_type {
         AccessType::Nothing => AccessInfo {
             stage_mask: vk::PipelineStageFlags2::empty(),
