@@ -502,6 +502,7 @@ pub fn get_memory_barrier<'a>(barrier: &GlobalBarrier<'a>) -> vk::MemoryBarrier2
 /// `vk::BufferMemoryBarrier2` for use with `vkCmdPipelineBarrier2` /
 /// `vkCmdWaitEvents2`.
 pub fn get_buffer_memory_barrier<'a>(barrier: &BufferBarrier<'a>) -> vk::BufferMemoryBarrier2<'a> {
+
     let mut buffer_barrier = vk::BufferMemoryBarrier2 {
         src_queue_family_index: barrier.src_queue_family_index,
         dst_queue_family_index: barrier.dst_queue_family_index,
@@ -541,7 +542,7 @@ pub fn get_buffer_memory_barrier<'a>(barrier: &BufferBarrier<'a>) -> vk::BufferM
 /// Mapping function that translates an image barrier into a synchronization 2
 /// `vk::ImageMemoryBarrier2` for use with `vkCmdPipelineBarrier2` /
 /// `vkCmdWaitEvents2`.
-pub fn get_image_memory_barrier<'a>(barrier: &ImageBarrier<'a>) -> vk::ImageMemoryBarrier2<'a> {
+pub fn get_image_memory_barrier<'a>(barrier: &ImageBarrier<'a>) -> vk::ImageMemoryBarrier2<'a> { //TODO the conflicting layout could be handled better
     let mut image_barrier = vk::ImageMemoryBarrier2 {
         src_queue_family_index: barrier.src_queue_family_index,
         dst_queue_family_index: barrier.dst_queue_family_index,
@@ -550,48 +551,57 @@ pub fn get_image_memory_barrier<'a>(barrier: &ImageBarrier<'a>) -> vk::ImageMemo
         ..Default::default()
     };
 
+    let mut resolved_old_layout = None;
+
     for previous_access in barrier.previous_accesses {
         let previous_info = get_access_info(*previous_access);
 
         image_barrier.src_stage_mask |= previous_info.stage_mask;
 
-        // Add appropriate availability operations - for writes only.
         if previous_access.is_write_access() {
             image_barrier.src_access_mask |= previous_info.access_mask;
         }
 
-        if barrier.discard_contents {
-            image_barrier.old_layout = vk::ImageLayout::UNDEFINED;
-        } else {
-            let layout = match barrier.previous_layout {
-                ImageLayout::General => {
-                    if *previous_access == AccessType::Present {
-                        vk::ImageLayout::PRESENT_SRC_KHR
-                    } else {
-                        vk::ImageLayout::GENERAL
-                    }
+        // Determine the layout for this specific access
+        let access_layout = match barrier.previous_layout {
+            ImageLayout::General => {
+                if *previous_access == AccessType::Present {
+                    vk::ImageLayout::PRESENT_SRC_KHR
+                } else {
+                    vk::ImageLayout::GENERAL
                 }
-                ImageLayout::Optimal => previous_info.image_layout,
-                ImageLayout::GeneralAndPresentation => {
-                    unimplemented!()
-                    // TODO: layout = vk::ImageLayout::VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR
-                }
-            };
+            }
+            ImageLayout::Optimal => previous_info.image_layout,
+            ImageLayout::GeneralAndPresentation => unimplemented!() ,
+        };
 
-            image_barrier.old_layout = layout;
+        // Ensure we aren't silently overwriting conflicting layouts
+        if let Some(existing_layout) = resolved_old_layout {
+            debug_assert_eq!(
+                existing_layout, access_layout,
+                "Conflicting old layouts requested in previous_accesses!"
+            );
+        } else {
+            resolved_old_layout = Some(access_layout);
         }
     }
+
+    image_barrier.old_layout = if barrier.discard_contents {
+        vk::ImageLayout::UNDEFINED
+    } else {
+        resolved_old_layout.unwrap_or(vk::ImageLayout::UNDEFINED)
+    };
+
+
+    let mut resolved_new_layout = None;
 
     for next_access in barrier.next_accesses {
         let next_info = get_access_info(*next_access);
 
         image_barrier.dst_stage_mask |= next_info.stage_mask;
-
-        // Add appropriate availability operations - in all cases beccause otherwise
-        // we get WAW and RAWs.
         image_barrier.dst_access_mask |= next_info.access_mask;
 
-        let layout = match barrier.next_layout {
+        let access_layout = match barrier.next_layout {
             ImageLayout::General => {
                 if *next_access == AccessType::Present {
                     vk::ImageLayout::PRESENT_SRC_KHR
@@ -600,14 +610,21 @@ pub fn get_image_memory_barrier<'a>(barrier: &ImageBarrier<'a>) -> vk::ImageMemo
                 }
             }
             ImageLayout::Optimal => next_info.image_layout,
-            ImageLayout::GeneralAndPresentation => {
-                unimplemented!()
-                // TODO: layout = vk::ImageLayout::VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR
-            }
+            ImageLayout::GeneralAndPresentation => unimplemented!(),
         };
 
-        image_barrier.new_layout = layout;
+        // Ensure we aren't silently overwriting conflicting layouts
+        if let Some(existing_layout) = resolved_new_layout {
+            debug_assert_eq!(
+                existing_layout, access_layout,
+                "Conflicting new layouts requested in next_accesses! Use General layout instead."
+            );
+        } else {
+            resolved_new_layout = Some(access_layout);
+        }
     }
+
+    image_barrier.new_layout = resolved_new_layout.unwrap_or(vk::ImageLayout::UNDEFINED);
 
     image_barrier
 }
