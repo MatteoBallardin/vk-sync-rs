@@ -13,7 +13,7 @@ categories = [
     "rendering::engine",
     "rendering::graphics-api",
 ]
-keywords = ["vulkan", "vk", "ash", "graphics", "3d"]
+keywords = ["vulkan", "vk", "ash", "graphics"]
 readme = "README.md"
 exclude = [".travis.yml", ".gitignore", "appveyor.yml"]
 edition = "2024"
