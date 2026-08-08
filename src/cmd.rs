@@ -1,5 +1,12 @@
 use super::*;
 use ash;
+use smallvec::SmallVec;
+
+/// Number of barriers of each kind kept inline before spilling to the heap.
+/// Sized for the common case of a handful of resources transitioning per
+/// dependency; `vk::ImageMemoryBarrier2` is ~96 bytes, so this is ~768 bytes of
+/// stack for the image array.
+const INLINE_BARRIERS: usize = 8;
 
 /// Simplified wrapper around `vkCmdPipelineBarrier2`.
 /// The mapping functions defined above are used to translate the passed in
@@ -14,27 +21,18 @@ pub fn pipeline_barrier(
     buffer_barriers: &[BufferBarrier],
     image_barriers: &[ImageBarrier],
 ) {
-    // TODO: Optimize out the Vec heap allocations
-    let mut vk_memory_barriers: Vec<vk::MemoryBarrier2> = Vec::with_capacity(1);
-    let mut vk_buffer_barriers: Vec<vk::BufferMemoryBarrier2> =
-        Vec::with_capacity(buffer_barriers.len());
-    let mut vk_image_barriers: Vec<vk::ImageMemoryBarrier2> =
-        Vec::with_capacity(image_barriers.len());
-
-    if let Some(ref barrier) = global_barrier {
-        vk_memory_barriers.push(get_memory_barrier(barrier));
-    }
-
-    for buffer_barrier in buffer_barriers {
-        vk_buffer_barriers.push(get_buffer_memory_barrier(buffer_barrier));
-    }
-
-    for image_barrier in image_barriers {
-        vk_image_barriers.push(get_image_memory_barrier(image_barrier));
-    }
+    let vk_memory_barrier = global_barrier.as_ref().map(get_memory_barrier);
+    let vk_buffer_barriers: SmallVec<[vk::BufferMemoryBarrier2; INLINE_BARRIERS]> = buffer_barriers
+        .iter()
+        .map(get_buffer_memory_barrier)
+        .collect();
+    let vk_image_barriers: SmallVec<[vk::ImageMemoryBarrier2; INLINE_BARRIERS]> = image_barriers
+        .iter()
+        .map(get_image_memory_barrier)
+        .collect();
 
     let dependency_info = vk::DependencyInfo::default()
-        .memory_barriers(&vk_memory_barriers)
+        .memory_barriers(vk_memory_barrier.as_slice())
         .buffer_memory_barriers(&vk_buffer_barriers)
         .image_memory_barriers(&vk_image_barriers);
 
@@ -102,31 +100,22 @@ pub fn wait_events(
     buffer_barriers: &[BufferBarrier],
     image_barriers: &[ImageBarrier],
 ) {
-    // TODO: Optimize out the Vec heap allocations
-    let mut vk_memory_barriers: Vec<vk::MemoryBarrier2> = Vec::with_capacity(1);
-    let mut vk_buffer_barriers: Vec<vk::BufferMemoryBarrier2> =
-        Vec::with_capacity(buffer_barriers.len());
-    let mut vk_image_barriers: Vec<vk::ImageMemoryBarrier2> =
-        Vec::with_capacity(image_barriers.len());
-
-    if let Some(ref barrier) = global_barrier {
-        vk_memory_barriers.push(get_memory_barrier(barrier));
-    }
-
-    for buffer_barrier in buffer_barriers {
-        vk_buffer_barriers.push(get_buffer_memory_barrier(buffer_barrier));
-    }
-
-    for image_barrier in image_barriers {
-        vk_image_barriers.push(get_image_memory_barrier(image_barrier));
-    }
+    let vk_memory_barrier = global_barrier.as_ref().map(get_memory_barrier);
+    let vk_buffer_barriers: SmallVec<[vk::BufferMemoryBarrier2; INLINE_BARRIERS]> = buffer_barriers
+        .iter()
+        .map(get_buffer_memory_barrier)
+        .collect();
+    let vk_image_barriers: SmallVec<[vk::ImageMemoryBarrier2; INLINE_BARRIERS]> = image_barriers
+        .iter()
+        .map(get_image_memory_barrier)
+        .collect();
 
     // `vkCmdWaitEvents2` requires one `VkDependencyInfo` per event, so duplicate
     // the same barrier set for every event.
-    let dependency_infos: Vec<vk::DependencyInfo> = (0..events.len())
+    let dependency_infos: SmallVec<[vk::DependencyInfo; INLINE_BARRIERS]> = (0..events.len())
         .map(|_| {
             vk::DependencyInfo::default()
-                .memory_barriers(&vk_memory_barriers)
+                .memory_barriers(vk_memory_barrier.as_slice())
                 .buffer_memory_barriers(&vk_buffer_barriers)
                 .image_memory_barriers(&vk_image_barriers)
         })
