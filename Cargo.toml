@@ -21,7 +21,14 @@ edition = "2024"
 [badges]
 maintenance = { status = "actively-developed" }
 
+[features]
+default = []
+# Report image barriers whose layout had to be widened to accommodate several
+# accesses at once - legal, but potentially slower than the caller intended.
+log = ["dep:log"]
+
 [dependencies]
 ash = "0.38.0"
 smallvec = "1.13"
+log = { version = "0.4", optional = true }
 

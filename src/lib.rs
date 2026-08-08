@@ -19,11 +19,12 @@
 //! invoke the `*2` entry points via `vk::DependencyInfo`.
 
 use ash::vk;
+use std::fmt;
 
 pub mod cmd;
 
 /// Defines all potential resource usages
-#[derive(Debug, Copy, Clone, PartialEq, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum AccessType {
     /// No access. Useful primarily for initialization
     #[default]
@@ -377,6 +378,18 @@ impl AccessType {
 #[derive(Debug, Copy, Clone, PartialEq, Default)]
 pub enum ImageLayout {
     /// Choose the most optimal layout for each usage. Performs layout transitions as appropriate for the access.
+    ///
+    /// When several accesses in the same list require *different* optimal layouts, the barrier
+    /// resolves to the least layout that permits all of them:
+    ///
+    /// * read-only layouts combine into `READ_ONLY_OPTIMAL` (e.g. a sampled read alongside a
+    ///   depth/stencil attachment read),
+    /// * attachment layouts combine into `ATTACHMENT_OPTIMAL` (e.g. depth write alongside a
+    ///   depth-write/stencil-read aspect split),
+    /// * anything else combines into `GENERAL`, which is legal but may disable framebuffer
+    ///   compression - prefer two separate barriers when the accesses do not genuinely overlap,
+    /// * accesses that admit no common layout (anything mixed with `Present`, a fragment density
+    ///   map or a video picture resource) are reported as [`LayoutError::Conflict`].
     #[default]
     Optimal,
 
@@ -452,6 +465,21 @@ pub struct BufferBarrier<'a> {
 /// for transient images where the contents are going to be immediately overwritten.
 /// A good example of when to use this is when an application re-uses a presented
 /// image after acquiring the next swap chain image.
+///
+/// # Access list contract
+///
+/// `previous_accesses` must name the same set of accesses that the barrier which last
+/// transitioned this subresource listed in its `next_accesses`. Both lists are resolved to a
+/// layout by the same deterministic rules (see [`ImageLayout::Optimal`]), so listing the same
+/// set on the way out as on the way in is what guarantees `old_layout` matches the layout the
+/// image is actually in - a requirement of `VkImageMemoryBarrier2`. Listing a *subset* on the
+/// way in after a barrier that widened its layout will produce an `old_layout` that does not
+/// match reality. Pass `discard_contents` when the previous layout genuinely doesn't matter.
+///
+/// `AccessType::Nothing` (and any access that implies no image layout, such as the buffer-only
+/// access types) is ignored when resolving layouts rather than forcing `UNDEFINED`, so mixing it
+/// into `previous_accesses` alongside a real access does *not* discard the image contents - use
+/// `discard_contents` for that.
 #[derive(Debug, Default, Clone)]
 pub struct ImageBarrier<'a> {
     pub previous_accesses: &'a [AccessType],
@@ -539,10 +567,257 @@ pub fn get_buffer_memory_barrier<'a>(barrier: &BufferBarrier<'a>) -> vk::BufferM
     buffer_barrier
 }
 
+/// Which of an [`ImageBarrier`]'s two access lists a layout was resolved from.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum BarrierDirection {
+    /// Resolved from `ImageBarrier::previous_accesses`, producing `old_layout`.
+    Previous,
+    /// Resolved from `ImageBarrier::next_accesses`, producing `new_layout`.
+    Next,
+}
+
+impl fmt::Display for BarrierDirection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BarrierDirection::Previous => f.write_str("previous_accesses"),
+            BarrierDirection::Next => f.write_str("next_accesses"),
+        }
+    }
+}
+
+/// Reasons an [`ImageBarrier`] cannot be translated into a valid `vk::ImageMemoryBarrier2`.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum LayoutError {
+    /// Two accesses in the same list require image layouts with no common resolution - there is
+    /// no single layout the image could be in that permits both.
+    Conflict {
+        /// Which access list the conflict was found in.
+        direction: BarrierDirection,
+        /// Layout resolved from the accesses processed so far.
+        resolved: vk::ImageLayout,
+        /// The access that could not be reconciled with `resolved`.
+        access: AccessType,
+        /// The layout `access` requires.
+        required: vk::ImageLayout,
+    },
+    /// No access in `next_accesses` implies an image layout and the image's previous layout is
+    /// unknown, so `new_layout` would have to be `UNDEFINED` - which Vulkan forbids.
+    UndefinedNewLayout,
+}
+
+impl fmt::Display for LayoutError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LayoutError::Conflict {
+                direction,
+                resolved,
+                access,
+                required,
+            } => write!(
+                f,
+                "conflicting image layouts in {direction}: {access:?} requires {required:?}, \
+                 which cannot be reconciled with the {resolved:?} required by the accesses \
+                 before it - split this into separate barriers"
+            ),
+            LayoutError::UndefinedNewLayout => f.write_str(
+                "next_accesses implies no image layout and no previous layout is known, so \
+                 new_layout would be UNDEFINED, which is not a legal barrier",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for LayoutError {}
+
+/// Classification of a `vk::ImageLayout` for the purposes of [`join_image_layouts`].
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum LayoutFamily {
+    /// `UNDEFINED` - imposes no requirement at all; the identity of the join.
+    Neutral,
+    /// Read-only layouts, all reconcilable as `READ_ONLY_OPTIMAL`.
+    ReadOnly,
+    /// Attachment layouts, all reconcilable as `ATTACHMENT_OPTIMAL`.
+    Attachment,
+    /// Layouts that may legally be widened to `GENERAL`.
+    Widenable,
+    /// Layouts with no legal substitute - they cannot be reconciled with anything else.
+    Exclusive,
+    /// `SHARED_PRESENT_KHR` - the top of the lattice, valid for every access on a shared
+    /// presentable image.
+    SharedPresent,
+}
+
+#[inline]
+fn layout_family(layout: vk::ImageLayout) -> LayoutFamily {
+    match layout {
+        vk::ImageLayout::UNDEFINED => LayoutFamily::Neutral,
+
+        vk::ImageLayout::SHARED_PRESENT_KHR => LayoutFamily::SharedPresent,
+
+        // `PRESENT_SRC_KHR` and the video picture layouts have no `GENERAL` alternative in the
+        // spec. `FRAGMENT_DENSITY_MAP_OPTIMAL_EXT` is exclusive by *policy* rather than by
+        // legality - `GENERAL` is permitted for a density map, but using it defeats the point of
+        // one, so we would rather report the conflict than silently pessimise.
+        vk::ImageLayout::PRESENT_SRC_KHR
+        | vk::ImageLayout::FRAGMENT_DENSITY_MAP_OPTIMAL_EXT
+        | vk::ImageLayout::VIDEO_DECODE_SRC_KHR
+        | vk::ImageLayout::VIDEO_DECODE_DST_KHR
+        | vk::ImageLayout::VIDEO_DECODE_DPB_KHR
+        | vk::ImageLayout::VIDEO_ENCODE_SRC_KHR
+        | vk::ImageLayout::VIDEO_ENCODE_DST_KHR
+        | vk::ImageLayout::VIDEO_ENCODE_DPB_KHR => LayoutFamily::Exclusive,
+
+        // `READ_ONLY_OPTIMAL` covers sampled, input attachment and read-only depth/stencil
+        // attachment access. `TRANSFER_SRC_OPTIMAL` is deliberately *not* a member: it is
+        // read-only, but `READ_ONLY_OPTIMAL` does not permit transfer-source access, so folding
+        // it in here would generate illegal barriers. It widens to `GENERAL` instead.
+        vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
+        | vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL
+        | vk::ImageLayout::DEPTH_READ_ONLY_OPTIMAL
+        | vk::ImageLayout::STENCIL_READ_ONLY_OPTIMAL
+        | vk::ImageLayout::READ_ONLY_OPTIMAL => LayoutFamily::ReadOnly,
+
+        vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL
+        | vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+        | vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL
+        | vk::ImageLayout::STENCIL_ATTACHMENT_OPTIMAL
+        | vk::ImageLayout::DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL
+        | vk::ImageLayout::DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL
+        | vk::ImageLayout::ATTACHMENT_OPTIMAL => LayoutFamily::Attachment,
+
+        // Transfer src/dst, sampled/storage `GENERAL`, and the shading rate attachment layout all
+        // have `GENERAL` as a legal (if potentially slower) substitute.
+        _ => LayoutFamily::Widenable,
+    }
+}
+
+/// Least image layout that permits both `a` and `b`, or `None` when no single layout can.
+///
+/// This is a join over a semilattice, which makes it commutative, associative and idempotent -
+/// folding it across an access list therefore gives the same answer regardless of the order the
+/// accesses were listed in. That property is what lets `old_layout` and `new_layout` agree across
+/// successive barriers over the same access set.
+///
+/// Four invariants keep it that way, and breaking any of them makes the fold order-dependent or
+/// unsound:
+///
+/// 1. The exclusive check must come *before* any `GENERAL` shortcut. With an early
+///    `if a == GENERAL { return Some(GENERAL) }`, `(TRANSFER_SRC ∨ TRANSFER_DST) ∨ PRESENT_SRC`
+///    resolves to `GENERAL` - presenting from `GENERAL` - while the reverse order gives `None`.
+/// 2. Each family's top must itself be a member of that family (`READ_ONLY_OPTIMAL` is
+///    `ReadOnly`, `ATTACHMENT_OPTIMAL` is `Attachment`), so joining the result back in is a no-op.
+/// 3. The families must stay disjoint - `DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL` is an
+///    attachment layout only.
+/// 4. Do not add further `None` cases. An unresolvable layout has to be maximal and incomparable
+///    to `GENERAL`; making, say, `COLOR ∨ DEPTH_STENCIL` unresolvable would destroy associativity
+///    because both are below `GENERAL`. Report suspicious-but-legal combinations after the fold
+///    instead - see `note_widening`.
+#[inline]
+fn join_image_layouts(a: vk::ImageLayout, b: vk::ImageLayout) -> Option<vk::ImageLayout> {
+    if a == b {
+        return Some(a);
+    }
+
+    match (layout_family(a), layout_family(b)) {
+        (LayoutFamily::Neutral, _) => Some(b),
+        (_, LayoutFamily::Neutral) => Some(a),
+        (LayoutFamily::SharedPresent, _) | (_, LayoutFamily::SharedPresent) => {
+            Some(vk::ImageLayout::SHARED_PRESENT_KHR)
+        }
+        (LayoutFamily::Exclusive, _) | (_, LayoutFamily::Exclusive) => None,
+        (LayoutFamily::ReadOnly, LayoutFamily::ReadOnly) => {
+            Some(vk::ImageLayout::READ_ONLY_OPTIMAL)
+        }
+        (LayoutFamily::Attachment, LayoutFamily::Attachment) => {
+            Some(vk::ImageLayout::ATTACHMENT_OPTIMAL)
+        }
+        _ => Some(vk::ImageLayout::GENERAL),
+    }
+}
+
+/// Reports a layout that had to be widened to accommodate several accesses at once. Widening is
+/// always legal - it is a performance note, not an error - so this is purely diagnostic and
+/// compiles away entirely unless the `log` feature is enabled.
+#[inline]
+fn note_widening(
+    _direction: BarrierDirection,
+    _resolved: vk::ImageLayout,
+    _access: AccessType,
+    _required: vk::ImageLayout,
+    _joined: vk::ImageLayout,
+) {
+    #[cfg(feature = "log")]
+    if _joined == vk::ImageLayout::GENERAL {
+        log::warn!(
+            "vk-sync: {_direction} widened to GENERAL - {_access:?} requires {_required:?} but \
+             the accesses before it require {_resolved:?}. This is legal but may disable image \
+             compression; consider separate barriers."
+        );
+    } else {
+        log::debug!(
+            "vk-sync: {_direction} widened to {_joined:?} - {_access:?} requires {_required:?} \
+             and the accesses before it require {_resolved:?}."
+        );
+    }
+}
+
+/// Layout a single access requires, under the layout mode the caller asked for.
+#[inline]
+fn access_layout(mode: ImageLayout, access: AccessType, info: &AccessInfo) -> vk::ImageLayout {
+    match mode {
+        ImageLayout::Optimal => info.image_layout,
+        ImageLayout::General => {
+            if access == AccessType::Present {
+                vk::ImageLayout::PRESENT_SRC_KHR
+            } else {
+                vk::ImageLayout::GENERAL
+            }
+        }
+        // A shared presentable image stays in `SHARED_PRESENT_KHR` for every access, including
+        // presentation - there are no transitions to make.
+        ImageLayout::GeneralAndPresentation => vk::ImageLayout::SHARED_PRESENT_KHR,
+    }
+}
+
+/// Folds one more access into an already-resolved layout, reporting widening as it goes.
+#[inline]
+fn fold_layout(
+    direction: BarrierDirection,
+    resolved: vk::ImageLayout,
+    access: AccessType,
+    required: vk::ImageLayout,
+) -> Result<vk::ImageLayout, LayoutError> {
+    let joined = join_image_layouts(resolved, required).ok_or(LayoutError::Conflict {
+        direction,
+        resolved,
+        access,
+        required,
+    })?;
+
+    // A join that matches neither input is a widening: legal, but the caller gave up a more
+    // specific layout to get it.
+    if joined != resolved && joined != required {
+        note_widening(direction, resolved, access, required, joined);
+    }
+
+    Ok(joined)
+}
+
 /// Mapping function that translates an image barrier into a synchronization 2
 /// `vk::ImageMemoryBarrier2` for use with `vkCmdPipelineBarrier2` /
 /// `vkCmdWaitEvents2`.
-pub fn get_image_memory_barrier<'a>(barrier: &ImageBarrier<'a>) -> vk::ImageMemoryBarrier2<'a> { //TODO the conflicting layout could be handled better
+///
+/// Accesses within each list that require different image layouts are reconciled to the least
+/// layout permitting all of them, as described on [`ImageLayout::Optimal`].
+///
+/// # Errors
+///
+/// Returns [`LayoutError::Conflict`] when a list mixes accesses that no single layout can serve,
+/// and [`LayoutError::UndefinedNewLayout`] when the barrier would need an `UNDEFINED` new layout.
+/// See [`get_image_memory_barrier`] for the panicking equivalent.
+pub fn try_get_image_memory_barrier<'a>(
+    barrier: &ImageBarrier<'a>,
+) -> Result<vk::ImageMemoryBarrier2<'a>, LayoutError> {
     let mut image_barrier = vk::ImageMemoryBarrier2 {
         src_queue_family_index: barrier.src_queue_family_index,
         dst_queue_family_index: barrier.dst_queue_family_index,
@@ -551,49 +826,35 @@ pub fn get_image_memory_barrier<'a>(barrier: &ImageBarrier<'a>) -> vk::ImageMemo
         ..Default::default()
     };
 
-    let mut resolved_old_layout = None;
+    // `UNDEFINED` is the identity of the join, so it doubles as "nothing resolved yet".
+    let mut resolved_old_layout = vk::ImageLayout::UNDEFINED;
 
     for previous_access in barrier.previous_accesses {
         let previous_info = get_access_info(*previous_access);
 
         image_barrier.src_stage_mask |= previous_info.stage_mask;
 
+        // Add appropriate availability operations - for writes only.
         if previous_access.is_write_access() {
             image_barrier.src_access_mask |= previous_info.access_mask;
         }
 
-        // Determine the layout for this specific access
-        let access_layout = match barrier.previous_layout {
-            ImageLayout::General => {
-                if *previous_access == AccessType::Present {
-                    vk::ImageLayout::PRESENT_SRC_KHR
-                } else {
-                    vk::ImageLayout::GENERAL
-                }
-            }
-            ImageLayout::Optimal => previous_info.image_layout,
-            ImageLayout::GeneralAndPresentation => unimplemented!() ,
-        };
-
-        // Ensure we aren't silently overwriting conflicting layouts
-        if let Some(existing_layout) = resolved_old_layout {
-            debug_assert_eq!(
-                existing_layout, access_layout,
-                "Conflicting old layouts requested in previous_accesses!"
-            );
-        } else {
-            resolved_old_layout = Some(access_layout);
-        }
+        let required = access_layout(barrier.previous_layout, *previous_access, &previous_info);
+        resolved_old_layout = fold_layout(
+            BarrierDirection::Previous,
+            resolved_old_layout,
+            *previous_access,
+            required,
+        )?;
     }
 
     image_barrier.old_layout = if barrier.discard_contents {
         vk::ImageLayout::UNDEFINED
     } else {
-        resolved_old_layout.unwrap_or(vk::ImageLayout::UNDEFINED)
+        resolved_old_layout
     };
 
-
-    let mut resolved_new_layout = None;
+    let mut resolved_new_layout = vk::ImageLayout::UNDEFINED;
 
     for next_access in barrier.next_accesses {
         let next_info = get_access_info(*next_access);
@@ -601,32 +862,44 @@ pub fn get_image_memory_barrier<'a>(barrier: &ImageBarrier<'a>) -> vk::ImageMemo
         image_barrier.dst_stage_mask |= next_info.stage_mask;
         image_barrier.dst_access_mask |= next_info.access_mask;
 
-        let access_layout = match barrier.next_layout {
-            ImageLayout::General => {
-                if *next_access == AccessType::Present {
-                    vk::ImageLayout::PRESENT_SRC_KHR
-                } else {
-                    vk::ImageLayout::GENERAL
-                }
-            }
-            ImageLayout::Optimal => next_info.image_layout,
-            ImageLayout::GeneralAndPresentation => unimplemented!(),
-        };
-
-        // Ensure we aren't silently overwriting conflicting layouts
-        if let Some(existing_layout) = resolved_new_layout {
-            debug_assert_eq!(
-                existing_layout, access_layout,
-                "Conflicting new layouts requested in next_accesses! Use General layout instead."
-            );
-        } else {
-            resolved_new_layout = Some(access_layout);
-        }
+        let required = access_layout(barrier.next_layout, *next_access, &next_info);
+        resolved_new_layout = fold_layout(
+            BarrierDirection::Next,
+            resolved_new_layout,
+            *next_access,
+            required,
+        )?;
     }
 
-    image_barrier.new_layout = resolved_new_layout.unwrap_or(vk::ImageLayout::UNDEFINED);
+    // `newLayout` must never be `UNDEFINED`. When no next access implies a layout - an empty list,
+    // `Nothing`, or buffer-only access types - leave the image where it is; a transition to the
+    // layout it is already in is always legal. This uses the pre-discard layout deliberately, as
+    // `image_barrier.old_layout` may have been overwritten by `discard_contents` above.
+    image_barrier.new_layout = if resolved_new_layout == vk::ImageLayout::UNDEFINED {
+        if resolved_old_layout == vk::ImageLayout::UNDEFINED {
+            return Err(LayoutError::UndefinedNewLayout);
+        }
+        resolved_old_layout
+    } else {
+        resolved_new_layout
+    };
 
-    image_barrier
+    Ok(image_barrier)
+}
+
+/// Mapping function that translates an image barrier into a synchronization 2
+/// `vk::ImageMemoryBarrier2` for use with `vkCmdPipelineBarrier2` /
+/// `vkCmdWaitEvents2`.
+///
+/// # Panics
+///
+/// Panics when the barrier cannot be expressed - see [`try_get_image_memory_barrier`] for the
+/// non-panicking equivalent and for what those cases are.
+pub fn get_image_memory_barrier<'a>(barrier: &ImageBarrier<'a>) -> vk::ImageMemoryBarrier2<'a> {
+    match try_get_image_memory_barrier(barrier) {
+        Ok(image_barrier) => image_barrier,
+        Err(error) => panic!("vk-sync: {error}"),
+    }
 }
 
 pub(crate) struct AccessInfo {
@@ -1152,5 +1425,82 @@ pub(crate) fn get_access_info(access_type: AccessType) -> AccessInfo { //TODO th
                 | vk::AccessFlags2::SHADER_STORAGE_WRITE,
             image_layout: vk::ImageLayout::GENERAL,
         },
+    }
+}
+
+/// Verifies that the `log` feature's widening diagnostics actually reach the logger. Lives here
+/// rather than in `tests/` because the `log` dependency is optional and therefore not visible to
+/// integration tests.
+#[cfg(all(test, feature = "log"))]
+mod log_tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    static RECORDS: Mutex<Vec<(log::Level, String)>> = Mutex::new(Vec::new());
+
+    struct CaptureLogger;
+
+    impl log::Log for CaptureLogger {
+        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+            true
+        }
+
+        fn log(&self, record: &log::Record<'_>) {
+            RECORDS
+                .lock()
+                .unwrap()
+                .push((record.level(), record.args().to_string()));
+        }
+
+        fn flush(&self) {}
+    }
+
+    fn image_barrier<'a>(next_accesses: &'a [AccessType]) -> ImageBarrier<'a> {
+        ImageBarrier {
+            previous_accesses: &[AccessType::Nothing],
+            next_accesses,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn widening_is_logged() {
+        log::set_logger(&CaptureLogger).unwrap();
+        log::set_max_level(log::LevelFilter::Trace);
+
+        // Widening all the way to GENERAL is a performance cliff - warn about it.
+        let barrier = image_barrier(&[
+            AccessType::TransferRead,
+            AccessType::FragmentShaderReadSampledImageOrUniformTexelBuffer,
+        ]);
+        let _ = try_get_image_memory_barrier(&barrier).unwrap();
+
+        // Widening within the read-only family is near-optimal - debug is enough.
+        let barrier = image_barrier(&[
+            AccessType::FragmentShaderReadSampledImageOrUniformTexelBuffer,
+            AccessType::DepthStencilAttachmentRead,
+        ]);
+        let _ = try_get_image_memory_barrier(&barrier).unwrap();
+
+        // No widening at all - nothing to report.
+        let barrier = image_barrier(&[AccessType::ColorAttachmentWrite]);
+        let _ = try_get_image_memory_barrier(&barrier).unwrap();
+
+        let records = RECORDS.lock().unwrap();
+        assert_eq!(records.len(), 2, "unexpected records: {records:?}");
+
+        assert_eq!(records[0].0, log::Level::Warn);
+        assert!(
+            records[0].1.contains("widened to GENERAL"),
+            "unexpected message: {}",
+            records[0].1
+        );
+
+        assert_eq!(records[1].0, log::Level::Debug);
+        assert!(
+            records[1].1.contains("READ_ONLY_OPTIMAL"),
+            "unexpected message: {}",
+            records[1].1
+        );
     }
 }
